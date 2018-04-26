@@ -7,7 +7,6 @@ import configparser
 
 config = configparser.ConfigParser()
 config.read("/Users/youhaolin/config.ini")
-config.get('baseconf', 'access_token')
 
 PTS_FL = '/Users/youhaolin/ai_adt/data/pts.json'
 LOG_FILE = 'logs/blood.log'
