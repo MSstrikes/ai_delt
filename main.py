@@ -18,7 +18,7 @@ if __name__ == '__main__':
     # compare_pt.unique_proc()
     #
     # import unique_history
-    # unique_history.uniqueHis()
+    # unique_history.unique_his()
     #
     # import utils as tool
     # tool.movefile(tool.DST_FL_UIQ_HIS,tool.PTS_FL)

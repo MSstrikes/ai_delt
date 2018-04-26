@@ -5,24 +5,26 @@ import shutil
 import logging
 import configparser
 
+section = 'base_conf'
 config = configparser.ConfigParser()
 config.read("/Users/youhaolin/config.ini")
 
-PTS_FL = '/Users/youhaolin/ai_adt/data/pts.json'
-LOG_FILE = 'logs/blood.log'
-ACS_TK = config.get('baseconf', 'access_token')
+PTS_FL = config.get(section, 'pts_file')
+LOG_FILE = config.get(section, 'log_file')
+ACS_TK = config.get(section, 'access_token')
+DST_FL_POP = config.get(section, 'dst_pop')
+DST_FL_UIQ_OWN = config.get(section, 'dst_own')
+DST_FL_UIQ_HIS = config.get(section, 'dst_his')
+ACT_UID = config.get(section, 'account_id')
+NAT_URL = config.get(section, 'nat_url')
+DELIVERY_PTS_DIR = config.get(section, 'delivery_dir')
+BLOOD_LISTEN_OBJ = config.get(section, 'ad_seeds')
+
 MIN_EP = 100000
-DST_FL_POP = '/tmp/pop.json'
-DST_FL_UIQ_OWN = '/tmp/unique_own.json'
-DST_FL_UIQ_HIS = '/tmp/unique_his.json'
 FB_API_VERSION = 'v2.12'
 METHOD_POST = 'POST'
-ACT_UID = config.get('baseconf', 'account_id')
 ACT_ID = 'act_' + ACT_UID
 STATUS_PAUSE = 'status=PAUSED'
-NATS_URL = config.get('baseconf', 'nats_url')
-DELIVERY_PTS_DIR = '/Users/youhaolin/ai_adt/data/delivery_pts'
-BLOOD_LISTEN_OBJ = '/Users/youhaolin/Downloads/export_20180425_1832.csv'
 POST_HEADER = {
     'User-Agent': r'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) '
                   r'Chrome/45.0.2454.85 Safari/537.36 115Browser/6.0.3',
@@ -42,23 +44,23 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 
-def loadJson(json_file):
+def load_json(json_file):
     with open(json_file, 'r', encoding='UTF-8') as load_f:
         load_dict = json.load(load_f, object_pairs_hook=OrderedDict)
     return load_dict
 
 
-def movefile(srcfile, dstfile):
-    if not os.path.isfile(srcfile):
-        print("%s not exist!" % (srcfile))
+def move_file(src_file, dst_file):
+    if not os.path.isfile(src_file):
+        print("%s not exist!" % src_file)
     else:
-        fpath, fname = os.path.split(dstfile)  # 分离文件名和路径
-        if not os.path.exists(fpath):
-            os.makedirs(fpath)  # 创建路径
-        shutil.move(srcfile, dstfile)  # 移动文件
-        print("move %s -> %s" % (srcfile, dstfile))
+        f_path, f_name = os.path.split(dst_file)  # 分离文件名和路径
+        if not os.path.exists(f_path):
+            os.makedirs(f_path)  # 创建路径
+        shutil.move(src_file, dst_file)  # 移动文件
+        print("move %s -> %s" % (src_file, dst_file))
 
 
-def saveJson(json_file, jsonObj):
+def save_json(json_file, json_obj):
     with open(json_file, "w") as f:
-        json.dump(jsonObj, f, indent=4)
+        json.dump(json_obj, f, indent=4)

@@ -104,9 +104,9 @@ def handler():
 
             # 如果血量为0，则关闭广告
             if ads_group_blood[ad_id] == 0:
-                fp.stopCompaign(ad_id)
-                fp.stopCompaign(fp.get_adset_id(ad_id))
-                fp.stopCompaign(fp.get_compaign_id(ad_id))
+                fp.stop_campaign(ad_id)
+                fp.stop_campaign(fp.get_adset_id(ad_id))
+                fp.stop_campaign(fp.get_campaign_id(ad_id))
                 tool.logger.info('campaign\t' + ad_id + '\tclosed for 0 blood.')
             else:
                 sum_spend = sum_spend + spend
@@ -143,7 +143,6 @@ def monitor():
                     org_bid = fp.get_bid_amount(org_advertise_set_id)
                     new_bid = 25000
                     if ads_group_blood[key] >= threshold:
-                        # new_bid = random.uniform(25000,60000)
                         new_bid = 600 - 350 * (ads_group_blood[key] - 100) / (threshold - 100 + 0.001)
                         if new_bid > 600:
                             new_bid = 600
@@ -151,7 +150,7 @@ def monitor():
                     tool.logger.info("ad set " + org_advertise_set_id + ' adjust bid amount from ' +
                                      str(org_bid) + " to " + str(new_bid))
             d_name = datetime.datetime.now().strftime('%Y-%m-%d %H:%M').replace(':', "-").replace(' ', "-")
-            tool.saveJson('logs/blood-status-' + d_name + ".log", ads_group_blood)
+            tool.save_json('logs/blood-status-' + d_name + ".log", ads_group_blood)
             time.sleep(60)
         else:
             time.sleep(1)

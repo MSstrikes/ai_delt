@@ -22,17 +22,17 @@ def get_pt_key(pt):
     return hl.hexdigest()
 
 
-def unique_proc():
+def unique_process():
     feature = {}
-    load_dict = tool.loadJson(tool.DST_FL_POP)
+    load_dict = tool.load_json(tool.DST_FL_POP)
     for pt in load_dict:
         key = get_pt_key(pt)
         if key not in feature:
             feature[key] = pt
 
     print('--- ' + str(len(feature)) + ' ---')
-    outpt = []
+    out_pt = []
     for key in feature:
-        outpt.append(feature[key])
+        out_pt.append(feature[key])
     with open(tool.DST_FL_UIQ_OWN, 'w') as json_file:
-        json.dump(outpt, json_file, indent=4)
+        json.dump(out_pt, json_file, indent=4)
