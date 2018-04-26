@@ -1,24 +1,22 @@
+
 if __name__ == '__main__':
-    # print(fp.get_adset_id('23842826735840337'))
-    # adset_id='23842826735820337'
-    # fp.update_bid_amount(adset_id,10000)
-    # print(fp.get_bid_amount(adset_id))
-    # fp.stopCompaign('23842826736820337')
-    # fp.stopCompaign('23842826729960337')
-    # fp.stopCompaign('23842826728990337')
 
     import blood_monitor as bm
-
     bm.monitor()
+    # bm.get_ad_index()
+
+    # import facebook_api as fp
+    # print(fp.get_ad_status('23842837095270337'))
+    # print(fp.get_ad_status(fp.get_campaign_id('23842837095270337')))
 
     # import pt_select
-    # pt_select.selectPt()
+    # pt_select.select_pt()
     #
     # import compare_pt
-    # compare_pt.unique_proc()
+    # compare_pt.unique_process()
     #
     # import unique_history
     # unique_history.unique_his()
     #
     # import utils as tool
-    # tool.movefile(tool.DST_FL_UIQ_HIS,tool.PTS_FL)
+    # tool.move_file(tool.DST_FL_UIQ_HIS,tool.PTS_FL)

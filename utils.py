@@ -4,6 +4,7 @@ import os
 import shutil
 import logging
 import configparser
+import csv
 
 section = 'base_conf'
 config = configparser.ConfigParser()
@@ -20,7 +21,7 @@ NAT_URL = config.get(section, 'nat_url')
 DELIVERY_PTS_DIR = config.get(section, 'delivery_dir')
 BLOOD_LISTEN_OBJ = config.get(section, 'ad_seeds')
 
-MIN_EP = 100000
+MIN_EP = 100000  # 预估MAU最小值，用于选取显著的pt
 FB_API_VERSION = 'v2.12'
 METHOD_POST = 'POST'
 ACT_ID = 'act_' + ACT_UID
@@ -33,6 +34,9 @@ POST_HEADER = {
 FB_HOST_URL = 'https://graph.facebook.com/v2.12/'
 BID_STEP = 5000
 BID_MAX = 60000
+JSON_TMP_FILE1 = '/tmp/json_tmp_001.json'
+JSON_TMP_FILE2 = '/tmp/json_tmp_002.json'
+JSON_TMP_FILE3 = '/tmp/json_tmp_003.json'
 
 # 配置logger
 logger = logging.getLogger(__name__)
@@ -64,3 +68,11 @@ def move_file(src_file, dst_file):
 def save_json(json_file, json_obj):
     with open(json_file, "w") as f:
         json.dump(json_obj, f, indent=4)
+
+
+# 加载广告ID集合的数据
+ad_collections = []
+with open(BLOOD_LISTEN_OBJ, 'r') as csv_file:
+    spam_reader = csv.reader(csv_file)
+    for row in spam_reader:
+        ad_collections.append(row[0])

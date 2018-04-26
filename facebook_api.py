@@ -34,6 +34,7 @@ def url_get(url_open_link):
         except HTTPError as e:
             tool.logger.info('The server could n\'t fulfill  the request.  ')
             tool.logger.info('Error code: ' + str(e.code))
+            print('', e.reason)
             time.sleep(10)
         except URLError as e:
             tool.logger.info('We failed to reach a server.')
@@ -47,12 +48,7 @@ def url_get(url_open_link):
             return out.read().decode("utf-8")
 
 
-def get_insights(ad_id):
-    time_obj = {'since': time.strftime('%Y-%m-%d', time.localtime(time.time()))}
-    time_obj['until'] = time_obj['since']
-    query = compose({'time_range': json.dumps(time_obj), 'fields': 'spend,actions'})
-    out = url_get(tool.FB_HOST_URL + ad_id + '/insights?{}'.format(query))
-    json_out = json.loads(out)
+def get_insights_by_json(json_out):
     if len(json_out['data']) == 0:
         return 0, 0, 0
     spend = float(json_out['data'][0]['spend'])
@@ -67,6 +63,22 @@ def get_insights(ad_id):
             if act_type['action_type'] == 'app_custom_event.fb_mobile_purchase':
                 pay = int(act_type['value'])
         return spend, install, pay
+
+
+def get_insights(ad_id):
+    time_obj = {'since': time.strftime('%Y-%m-%d', time.localtime(time.time()))}
+    time_obj['until'] = time_obj['since']
+    query = compose({'time_range': json.dumps(time_obj), 'fields': 'spend,actions'})
+    out = url_get(tool.FB_HOST_URL + ad_id + '/insights?{}'.format(query))
+    json_out = json.loads(out)
+    return get_insights_by_json(json_out)
+
+
+def get_ad_status(ad_id):
+    query = compose({'fields': 'status'})
+    out = url_get(tool.FB_HOST_URL + ad_id + '?{}'.format(query))
+    json_out = json.loads(out)
+    return json_out['status']
 
 
 def get_adset_id(ad_id):

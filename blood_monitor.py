@@ -2,11 +2,12 @@
 # author : you hao lin
 
 import facebook_api as fp
-import csv
 import utils as tool
 import time
 import datetime
-
+import gevent
+import os
+import json
 
 # ----------------------------------------------------------
 # 计算血量
@@ -65,52 +66,104 @@ ads_group_index = {}
 ads_group_blood = {}
 
 
+def stop_ad_action(ad_id):
+    fp.stop_campaign(ad_id)
+    fp.stop_campaign(fp.get_adset_id(ad_id))
+    fp.stop_campaign(fp.get_campaign_id(ad_id))
+    tool.logger.info('campaign\t' + ad_id + '\tclosed for 0 blood.')
+
+
+def get_ad_index():
+    ad_id_str = ''
+    for ad_id in tool.ad_collections:
+        ad_id_str = ad_id_str + ad_id + ' '
+    # 获得广告的状态
+    str_cmd = 'sh getStatus.sh "\\"fields=status\\"" ' + ad_id_str + ' > ' + tool.JSON_TMP_FILE1
+    out = os.system(str_cmd)
+    ad_status = {}
+    if out == 0:
+        print('get ad status success!')
+        with open(tool.JSON_TMP_FILE1, 'r', encoding='UTF-8') as json_file:
+            lines = json_file.readlines()  # 读取全部内容 ，并以列表方式返回
+        for line in lines:
+            json_obj = json.loads(line)
+            if json_obj['level'] == 30:
+                ad_status[json_obj['detail']['id']] = json_obj['detail']['status']
+    else:
+        print('get ad status failure!')
+    print(ad_status)
+    # 获得广告的insights
+    from_date = time.strftime('%Y-%m-%d', time.localtime(time.time()))
+    to_date = from_date
+    str_cmd = 'sh getIndex.sh "\\"fields=ad_id,spend,actions&time_range={\\\\"\\"since\\\\"\\":\\\\"\\"' + from_date + \
+              '\\\\"\\",\\\\"\\"until\\\\"\\":\\\\"\\"' + to_date + '\\\\"\\"}\\"" ' + ad_id_str + ' > ' + tool.JSON_TMP_FILE2
+    out = os.system(str_cmd)
+    ad_dict = {}
+    if out == 0:
+        print("get ad index success!")
+        with open(tool.JSON_TMP_FILE2, 'r', encoding='UTF-8') as json_file:
+            lines = json_file.readlines()  # 读取全部内容 ，并以列表方式返回
+        for line in lines:
+            json_obj = json.loads(line)
+            if json_obj['level'] == 30:
+                if len(json_obj['detail']['data']) != 0:
+                    tmp_ad_id = json_obj['detail']['data'][0]['ad_id']
+                    if ad_status[tmp_ad_id] == 'ACTIVE':
+                        ad_dict[tmp_ad_id] = fp.get_insights_by_json(json_obj['detail'])
+    else:
+        print("get ad index failure!")
+
+    return ad_dict
+
+
 def handler():
     sum_spend = 0
     sum_install = 0
     blood_pool = []
-    with open(tool.BLOOD_LISTEN_OBJ, 'r') as csv_file:
-        spam_reader = csv.reader(csv_file)
-        for row in spam_reader:
-            ad_id = row[0]
-            # 排除血量已为0的广告
-            if ad_id in ads_group_blood and ads_group_blood[ad_id] == 0:
-                continue
+    stop_ads = []
+    ad_indexes = get_ad_index()
+    for ad_id in ad_indexes:
+        # 排除血量已为0的广告
+        if ad_id in ads_group_blood and ads_group_blood[ad_id] == 0:
+            continue
 
-            spend, install, pay = fp.get_insights(ad_id)
+        spend, install, pay = ad_indexes[ad_id]
 
-            if ad_id not in ads_group_index:
+        if ad_id not in ads_group_index:
+            blood_val = blood(spend, install, pay, spend, pay)
+        else:
+            spend_old, install_old, pay_old = ads_group_index[ad_id]
+            if spend < spend_old:
                 blood_val = blood(spend, install, pay, spend, pay)
             else:
-                spend_old, install_old, pay_old = ads_group_index[ad_id]
-                if spend < spend_old:
-                    blood_val = blood(spend, install, pay, spend, pay)
-                else:
-                    blood_val = blood(spend - spend_old, install - spend_old, pay - pay_old, spend, pay)
+                blood_val = blood(spend - spend_old, install - spend_old, pay - pay_old, spend, pay)
 
-            ads_group_index[ad_id] = (spend, install, pay)
-            if ad_id not in ads_group_blood:
-                ads_group_blood[ad_id] = 100
+        ads_group_index[ad_id] = (spend, install, pay)
 
-            ads_group_blood[ad_id] = round(ads_group_blood[ad_id] + blood_val, 2)
+        # 设置广告blood
+        if ad_id not in ads_group_blood:
+            ads_group_blood[ad_id] = 100
 
-            if ads_group_blood[ad_id] < 0:
-                ads_group_blood[ad_id] = 0
-            if ads_group_blood[ad_id] > 100:
-                ads_group_blood[ad_id] = 100
+        ads_group_blood[ad_id] = round(ads_group_blood[ad_id] + blood_val, 2)
 
-            tool.logger.info(ad_id + '\tblood\t' + str(round(blood_val, 2)))
-            blood_pool.append(ads_group_blood[ad_id])
+        if ads_group_blood[ad_id] < 0:
+            ads_group_blood[ad_id] = 0
+        if ads_group_blood[ad_id] > 100:
+            ads_group_blood[ad_id] = 100
 
-            # 如果血量为0，则关闭广告
-            if ads_group_blood[ad_id] == 0:
-                fp.stop_campaign(ad_id)
-                fp.stop_campaign(fp.get_adset_id(ad_id))
-                fp.stop_campaign(fp.get_campaign_id(ad_id))
-                tool.logger.info('campaign\t' + ad_id + '\tclosed for 0 blood.')
-            else:
-                sum_spend = sum_spend + spend
-                sum_install = sum_install + install
+        tool.logger.info(ad_id + '\tblood\t' + str(round(blood_val, 2)))
+        blood_pool.append(ads_group_blood[ad_id])
+
+        # 如果血量为0，则关闭广告
+        if ads_group_blood[ad_id] == 0:
+            stop_ads.append(ad_id)
+        else:
+            sum_spend = sum_spend + spend
+            sum_install = sum_install + install
+
+    # stop ads
+    threads = [gevent.spawn(stop_ad_action, ad_id) for ad_id in stop_ads]
+    gevent.joinall(threads)
 
     # threshold process
     blood_pool.sort(reverse=True)
@@ -132,8 +185,10 @@ def handler():
 
 def monitor():
     while True:
-        if time.strftime('%M', time.localtime(time.time()))[1] == '3':
+        if time.strftime('%M', time.localtime(time.time())) == '01':
             estimated_roi, threshold = handler()
+            print(estimated_roi)
+
             if estimated_roi >= 0.05 * (1 + 0.2):
                 tool.logger.info('adjust some ads\' bid amount......')
                 # 触发出价上调机会
