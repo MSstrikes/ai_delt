@@ -37,6 +37,7 @@ BID_MAX = 60000
 JSON_TMP_FILE1 = '/tmp/json_tmp_001.json'
 JSON_TMP_FILE2 = '/tmp/json_tmp_002.json'
 JSON_TMP_FILE3 = '/tmp/json_tmp_003.json'
+JSON_TMP_FILE4 = '/tmp/json_tmp_004.json'
 
 # 配置logger
 logger = logging.getLogger(__name__)
@@ -71,8 +72,13 @@ def save_json(json_file, json_obj):
 
 
 # 加载广告ID集合的数据
-ad_collections = []
+ad_collections = {}
+ad_id_str = ''
+ad_set_str = ''
 with open(BLOOD_LISTEN_OBJ, 'r') as csv_file:
     spam_reader = csv.reader(csv_file)
     for row in spam_reader:
-        ad_collections.append(row[0])
+        if spam_reader.line_num > 1:
+            ad_collections[row[2]] = {'campaign': row[0], 'adset': row[1]}
+            ad_id_str = ad_id_str + row[2] + ' '
+            ad_set_str = ad_set_str + row[1] + ' '
