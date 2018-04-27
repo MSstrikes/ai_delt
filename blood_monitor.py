@@ -74,11 +74,8 @@ def stop_ad_action(ad_id):
 
 
 def get_ad_index():
-    ad_id_str = ''
-    for ad_id in tool.ad_collections:
-        ad_id_str = ad_id_str + ad_id + ' '
     # 获得广告的状态
-    str_cmd = 'sh getStatus.sh "\\"fields=status\\"" ' + ad_id_str + ' > ' + tool.JSON_TMP_FILE1
+    str_cmd = 'sh getStatus.sh "\\"fields=status\\"" ' + tool.ad_id_str + ' > ' + tool.JSON_TMP_FILE1
     out = os.system(str_cmd)
     ad_status = {}
     if out == 0:
@@ -91,12 +88,12 @@ def get_ad_index():
                 ad_status[json_obj['detail']['id']] = json_obj['detail']['status']
     else:
         print('get ad status failure!')
-    print(ad_status)
+    # print(ad_status)
     # 获得广告的insights
     from_date = time.strftime('%Y-%m-%d', time.localtime(time.time()))
     to_date = from_date
     str_cmd = 'sh getIndex.sh "\\"fields=ad_id,spend,actions&time_range={\\\\"\\"since\\\\"\\":\\\\"\\"' + from_date + \
-              '\\\\"\\",\\\\"\\"until\\\\"\\":\\\\"\\"' + to_date + '\\\\"\\"}\\"" ' + ad_id_str + ' > ' + tool.JSON_TMP_FILE2
+              '\\\\"\\",\\\\"\\"until\\\\"\\":\\\\"\\"' + to_date + '\\\\"\\"}\\"" ' + tool.ad_id_str + ' > ' + tool.JSON_TMP_FILE2
     out = os.system(str_cmd)
     ad_dict = {}
     if out == 0:
@@ -112,7 +109,9 @@ def get_ad_index():
                         ad_dict[tmp_ad_id] = fp.get_insights_by_json(json_obj['detail'])
     else:
         print("get ad index failure!")
-
+    for ad_id in ad_status:
+        if ad_id not in ad_dict:
+            ad_dict[ad_id] = (0, 0, 0)
     return ad_dict
 
 
@@ -169,8 +168,8 @@ def handler():
     blood_pool.sort(reverse=True)
     print(blood_pool)
     if len(blood_pool) == 0:
-        tool.logger.info('exit program for 0 blood list size.')
-        exit(0)
+        tool.logger.info('find 0 blood list size.')
+        return 0, 0
     if len(blood_pool) >= 10:
         threshold = blood_pool[9]
     else:
@@ -183,27 +182,56 @@ def handler():
         return 0, threshold
 
 
+def judge_update(ad_set_id, org_bid, new_bid):
+    if org_bid != new_bid:
+        fp.update_bid_amount(ad_set_id, new_bid)
+        tool.logger.info("ad set " + ad_set_id + ' adjust bid amount from ' + str(org_bid) + " to " + str(new_bid))
+
+
 def monitor():
     while True:
-        if time.strftime('%M', time.localtime(time.time())) == '01':
+        if time.strftime('%M', time.localtime(time.time()))[1] == '9':
             estimated_roi, threshold = handler()
             print(estimated_roi)
 
+            # 获得广告的出价
+            str_cmd = 'sh getBidAmount.sh "\\"fields=bid_amount\\"" ' + tool.ad_set_str + ' > ' + tool.JSON_TMP_FILE4
+            out = os.system(str_cmd)
+            adset_bid = {}
+            if out == 0:
+                print('get ad bidamount success!')
+                with open(tool.JSON_TMP_FILE4, 'r', encoding='UTF-8') as json_file:
+                    lines = json_file.readlines()  # 读取全部内容 ，并以列表方式返回
+                for line in lines:
+                    json_obj = json.loads(line)
+                    if json_obj['level'] == 30:
+                        adset_bid[json_obj['detail']['id']] = json_obj['detail']['bid_amount']
+            else:
+                print('get ad bidamount failure!')
+            # 出价统一处理
+            new_bid = 25000
+            for key in ads_group_blood:
+                adset_id = tool.ad_collections[key]['adset']
+                cur_bid = adset_bid[adset_id]
+                judge_update(adset_id, cur_bid, new_bid)
+
+            # 触发调价机制
             if estimated_roi >= 0.05 * (1 + 0.2):
                 tool.logger.info('adjust some ads\' bid amount......')
                 # 触发出价上调机会
                 # 按blood选择前10个广告，给予调价机会
                 for key in ads_group_blood:
-                    org_advertise_set_id = fp.get_adset_id(key)
-                    org_bid = fp.get_bid_amount(org_advertise_set_id)
-                    new_bid = 25000
+                    adset_id = tool.ad_collections[key]['adset']
+                    org_bid = adset_bid[adset_id]
                     if ads_group_blood[key] >= threshold:
                         new_bid = 600 - 350 * (ads_group_blood[key] - 100) / (threshold - 100 + 0.001)
                         if new_bid > 600:
                             new_bid = 600
-                    fp.update_bid_amount(org_advertise_set_id, new_bid)
-                    tool.logger.info("ad set " + org_advertise_set_id + ' adjust bid amount from ' +
-                                     str(org_bid) + " to " + str(new_bid))
+                        if new_bid < 250:
+                            new_bid = 250
+                        new_bid = int(round(new_bid * 100, 0))
+                        judge_update(adset_id, org_bid, new_bid)
+
             d_name = datetime.datetime.now().strftime('%Y-%m-%d %H:%M').replace(':', "-").replace(' ', "-")
             tool.save_json('logs/blood-status-' + d_name + ".log", ads_group_blood)
             time.sleep(60)
