@@ -124,10 +124,27 @@ def stop_campaign(campaign_id):
 def update_bid_amount(ad_set_id, bid_amount):
     url = tool.FB_HOST_URL + ad_set_id
     data = compose({'bid_amount': bid_amount}, is_utf8=True)
-    req = urllib.request.Request(url, headers=tool.POST_HEADER, data=data)
-    page = urllib.request.urlopen(req).read()
-    page = page.decode('utf-8')
-    print(page)
+    while True:
+        try:
+            req = urllib.request.Request(url, headers=tool.POST_HEADER, data=data)
+            page = urllib.request.urlopen(req).read()
+            page = page.decode('utf-8')
+        except HTTPError as e:
+            tool.logger.info('The server could n\'t fulfill  the request.  ')
+            tool.logger.info('Error code: ' + str(e.code))
+            print('', e.reason)
+            time.sleep(10)
+        except URLError as e:
+            tool.logger.info('We failed to reach a server.')
+            tool.logger.info('Reason: ' + str(e.reason))
+            print('', e.reason)
+            time.sleep(10)
+        except TimeoutError:
+            tool.logger.info('connect time out...')
+            time.sleep(10)
+        else:
+            print('adset ' + ad_set_id + ' update bid amount to ' + str(bid_amount))
+            break
 
 
 def get_bid_amount(ad_set_id):
