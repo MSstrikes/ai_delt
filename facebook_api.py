@@ -95,32 +95,6 @@ def get_campaign_id(ad_id):
     return json_out['campaign_id']
 
 
-def run(loop, json_val):
-    nc = nats()
-    yield from nc.connect(io_loop=loop, servers=[tool.NAT_URL])
-    try:
-        response = yield from nc.request("fb_api.sync.request", json_val, 60)  # 60秒
-        print("Received response: {message}".format(message=response.data.decode()))
-    except ErrTimeout:
-        print("Request timed out")
-    yield from asyncio.sleep(1, loop=loop)
-    yield from nc.close()
-
-
-def json_compose(campaign_id):
-    dic = {'apiVersion': tool.FB_API_VERSION, 'path': campaign_id, 'method': tool.METHOD_POST,
-           'body': tool.STATUS_PAUSE}
-    out = {'token': tool.ACS_TK, 'request': dic, 'account': tool.ACT_UID, 'priority': 1}
-    j = json.dumps(out)
-    return j.encode(encoding="utf-8")
-
-
-def stop_campaign(campaign_id):
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(run(loop, json_compose(campaign_id)))
-    # loop.close()
-
-
 def update_bid_amount(ad_set_id, bid_amount):
     url = tool.FB_HOST_URL + ad_set_id
     data = compose({'bid_amount': bid_amount}, is_utf8=True)
