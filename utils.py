@@ -23,9 +23,7 @@ BLOOD_LISTEN_OBJ = config.get(section, 'ad_seeds')
 
 MIN_EP = 100000  # 预估MAU最小值，用于选取显著的pt
 FB_API_VERSION = 'v2.12'
-METHOD_POST = 'POST'
 ACT_ID = 'act_' + ACT_UID
-STATUS_PAUSE = 'status=PAUSED'
 POST_HEADER = {
     'User-Agent': r'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) '
                   r'Chrome/45.0.2454.85 Safari/537.36 115Browser/6.0.3',
@@ -38,6 +36,7 @@ JSON_TMP_FILE1 = '/tmp/json_tmp_001.json'
 JSON_TMP_FILE2 = '/tmp/json_tmp_002.json'
 JSON_TMP_FILE3 = '/tmp/json_tmp_003.json'
 JSON_TMP_FILE4 = '/tmp/json_tmp_004.json'
+REPLY_TO = 'cador_delt_pro_stop_campaign'
 
 # 配置logger
 logger = logging.getLogger(__name__)
