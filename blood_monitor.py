@@ -5,9 +5,9 @@ import facebook_api as fp
 import utils as tool
 import time
 import datetime
-import gevent
 import os
 import json
+import nats_proc as ntp
 
 # ----------------------------------------------------------
 # 计算血量
@@ -66,13 +66,6 @@ ads_group_index = {}
 ads_group_blood = {}
 
 
-def stop_ad_action(ad_id):
-    fp.stop_campaign(ad_id)
-    fp.stop_campaign(fp.get_adset_id(ad_id))
-    fp.stop_campaign(fp.get_campaign_id(ad_id))
-    tool.logger.info('campaign\t' + ad_id + '\tclosed for 0 blood.')
-
-
 def get_ad_index():
     # 获得广告的状态
     str_cmd = 'sh getStatus.sh "\\"fields=status\\"" ' + tool.ad_id_str + ' > ' + tool.JSON_TMP_FILE1
@@ -93,20 +86,22 @@ def get_ad_index():
     from_date = time.strftime('%Y-%m-%d', time.localtime(time.time()))
     to_date = from_date
     str_cmd = 'sh getIndex.sh "\\"fields=ad_id,spend,actions&time_range={\\\\"\\"since\\\\"\\":\\\\"\\"' + from_date + \
-              '\\\\"\\",\\\\"\\"until\\\\"\\":\\\\"\\"' + to_date + '\\\\"\\"}\\"" ' + tool.ad_id_str + ' > ' + tool.JSON_TMP_FILE2
+              '\\\\"\\",\\\\"\\"until\\\\"\\":\\\\"\\"' + to_date + '\\\\"\\"}\\"" ' + tool.ad_id_str + ' > ' + \
+              tool.JSON_TMP_FILE2
     out = os.system(str_cmd)
     ad_dict = {}
     if out == 0:
         print("get ad index success!")
         with open(tool.JSON_TMP_FILE2, 'r', encoding='UTF-8') as json_file:
-            lines = json_file.readlines()  # 读取全部内容 ，并以列表方式返回
+            lines = json_file.readlines()  #读取全部内容 ，并以列表方式返回
         for line in lines:
             json_obj = json.loads(line)
             if json_obj['level'] == 30:
                 if len(json_obj['detail']['data']) != 0:
-                    tmp_ad_id = json_obj['detail']['data'][0]['ad_id']
-                    if ad_status[tmp_ad_id] == 'ACTIVE':
-                        ad_dict[tmp_ad_id] = fp.get_insights_by_json(json_obj['detail'])
+                    if 'ad_id' in json_obj['detail']['data'][0]:
+                        tmp_ad_id = json_obj['detail']['data'][0]['ad_id']
+                        if ad_status[tmp_ad_id] == 'ACTIVE':
+                            ad_dict[tmp_ad_id] = fp.get_insights_by_json(json_obj['detail'])
     else:
         print("get ad index failure!")
     for ad_id in ad_status:
@@ -119,7 +114,7 @@ def handler():
     sum_spend = 0
     sum_install = 0
     blood_pool = []
-    stop_ads = []
+    stop_campaigns = []
     ad_indexes = get_ad_index()
     for ad_id in ad_indexes:
         # 排除血量已为0的广告
@@ -155,14 +150,15 @@ def handler():
 
         # 如果血量为0，则关闭广告
         if ads_group_blood[ad_id] == 0:
-            stop_ads.append(ad_id)
+            tmp_campaign = tool.ad_collections[ad_id]['campaign']
+            stop_campaigns.append(tmp_campaign)
+            tool.logger.info('campaign\t' + tmp_campaign + '\tclosed for 0 blood.')
         else:
             sum_spend = sum_spend + spend
             sum_install = sum_install + install
 
     # stop ads
-    threads = [gevent.spawn(stop_ad_action, ad_id) for ad_id in stop_ads]
-    gevent.joinall(threads)
+    ntp.stop_campaign(stop_campaigns)
 
     # threshold process
     blood_pool.sort(reverse=True)
@@ -190,7 +186,7 @@ def judge_update(ad_set_id, org_bid, new_bid):
 
 def monitor():
     while True:
-        if time.strftime('%M', time.localtime(time.time()))[1] == '9':
+        if time.strftime('%M', time.localtime(time.time()))[1] == '0':
             estimated_roi, threshold = handler()
             print(estimated_roi)
 
@@ -201,7 +197,7 @@ def monitor():
             if out == 0:
                 print('get ad bidamount success!')
                 with open(tool.JSON_TMP_FILE4, 'r', encoding='UTF-8') as json_file:
-                    lines = json_file.readlines()  # 读取全部内容 ，并以列表方式返回
+                    lines = json_file.readlines()  #读取全部内容 ，并以列表方式返回
                 for line in lines:
                     json_obj = json.loads(line)
                     if json_obj['level'] == 30:
