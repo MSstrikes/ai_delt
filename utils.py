@@ -4,7 +4,9 @@ import os
 import shutil
 import logging
 import configparser
-import csv
+import requests
+import urllib3
+import urllib
 
 section = 'base_conf'
 config = configparser.ConfigParser()
@@ -37,6 +39,8 @@ JSON_TMP_FILE2 = '/tmp/json_tmp_002.json'
 JSON_TMP_FILE3 = '/tmp/json_tmp_003.json'
 JSON_TMP_FILE4 = '/tmp/json_tmp_004.json'
 REPLY_TO = 'cador_delt_pro_stop_campaign'
+TOP_N_UPDATE_BID = 10
+DEFAULT_BID = 10000
 
 # 配置logger
 logger = logging.getLogger(__name__)
@@ -70,14 +74,43 @@ def save_json(json_file, json_obj):
         json.dump(json_obj, f, indent=4)
 
 
+def compose(data, is_utf8=False):
+    dic = {'access_token': ACS_TK}
+    for key in data:
+        dic[key] = data[key]
+    query_str = urllib.parse.urlencode(dic)
+    if is_utf8:
+        return query_str.encode('utf-8')
+    else:
+        return query_str
+
+
 # 加载广告ID集合的数据
 ad_collections = {}
 ad_id_str = ''
 ad_set_str = ''
-with open(BLOOD_LISTEN_OBJ, 'r') as csv_file:
-    spam_reader = csv.reader(csv_file)
-    for row in spam_reader:
-        if spam_reader.line_num > 1:
-            ad_collections[row[2]] = {'campaign': row[0], 'adset': row[1]}
-            ad_id_str = ad_id_str + row[2] + ' '
-            ad_set_str = ad_set_str + row[1] + ' '
+
+
+def ad_init():
+    print("初始化监控广告集合...")
+    urllib3.disable_warnings()
+    query = compose({'fields': 'name,adsets{ads}', 'limit': 1000})
+    dst_url = FB_HOST_URL + ACT_ID + '/campaigns?{}'.format(query)
+    while True:
+        html = requests.get(dst_url, verify=False).text
+        json_out = json.loads(html)
+        for node in json_out['data']:
+            if node['name'].startswith(BLOOD_LISTEN_OBJ):
+                campaign_id = node['id']
+                adset_id = node['adsets']['data'][0]['id']
+                ad_id = node['adsets']['data'][0]['ads']['data'][0]['id']
+                ad_collections[ad_id] = {'campaign': campaign_id, 'adset': adset_id}
+                global ad_id_str, ad_set_str
+                ad_id_str = ad_id_str + ad_id + ' '
+                ad_set_str = ad_set_str + adset_id + ' '
+        if 'next' in json_out['paging']:
+            dst_url = json_out['paging']['next']
+        else:
+            print("<------finished!------>")
+            print("listen ads size " + str(len(ad_collections)))
+            break

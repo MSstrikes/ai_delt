@@ -2,26 +2,15 @@ import urllib.request
 import urllib.parse
 from urllib.error import URLError, HTTPError
 import time
-import asyncio
-from nats.aio.client import Client as nats
-from nats.aio.errors import ErrTimeout
 import json
 import utils as tool
+import urllib3
+import requests
 
-
-def compose(data, is_utf8=False):
-    dic = {'access_token': tool.ACS_TK}
-    for key in data:
-        dic[key] = data[key]
-    query = urllib.parse.urlencode(dic)
-    if is_utf8:
-        return query.encode('utf-8')
-    else:
-        return query
-
+urllib3.disable_warnings()
 
 def get_estimate_mau(target_val, opt_val):
-    query = compose({'targeting_spec': target_val, 'optimization_goal': opt_val})
+    query = tool.compose({'targeting_spec': target_val, 'optimization_goal': opt_val})
     out = urllib.request.urlopen(tool.FB_HOST_URL + tool.ACT_ID + '/delivery_estimate?{}'.format(query))
     json_out = json.loads(out.read().decode("utf-8"))
     return json_out['data'][0]['estimate_mau']
@@ -30,7 +19,7 @@ def get_estimate_mau(target_val, opt_val):
 def url_get(url_open_link):
     while True:
         try:
-            out = urllib.request.urlopen(url_open_link)
+            out = requests.get(url_open_link, verify=False).text
         except HTTPError as e:
             tool.logger.info('The server could n\'t fulfill  the request.  ')
             tool.logger.info('Error code: ' + str(e.code))
@@ -68,28 +57,28 @@ def get_insights_by_json(json_out):
 def get_insights(ad_id):
     time_obj = {'since': time.strftime('%Y-%m-%d', time.localtime(time.time()))}
     time_obj['until'] = time_obj['since']
-    query = compose({'time_range': json.dumps(time_obj), 'fields': 'spend,actions'})
+    query = tool.compose({'time_range': json.dumps(time_obj), 'fields': 'spend,actions'})
     out = url_get(tool.FB_HOST_URL + ad_id + '/insights?{}'.format(query))
     json_out = json.loads(out)
     return get_insights_by_json(json_out)
 
 
 def get_ad_status(ad_id):
-    query = compose({'fields': 'status'})
+    query = tool.compose({'fields': 'status'})
     out = url_get(tool.FB_HOST_URL + ad_id + '?{}'.format(query))
     json_out = json.loads(out)
     return json_out['status']
 
 
 def get_adset_id(ad_id):
-    query = compose({'fields': 'adset_id'})
+    query = tool.compose({'fields': 'adset_id'})
     out = url_get(tool.FB_HOST_URL + ad_id + '?{}'.format(query))
     json_out = json.loads(out)
     return json_out['adset_id']
 
 
 def get_campaign_id(ad_id):
-    query = compose({'fields': 'campaign_id'})
+    query = tool.compose({'fields': 'campaign_id'})
     out = url_get(tool.FB_HOST_URL + ad_id + '?{}'.format(query))
     json_out = json.loads(out)
     return json_out['campaign_id']
@@ -97,12 +86,13 @@ def get_campaign_id(ad_id):
 
 def update_bid_amount(ad_set_id, bid_amount):
     url = tool.FB_HOST_URL + ad_set_id
-    data = compose({'bid_amount': bid_amount}, is_utf8=True)
+    data = tool.compose({'bid_amount': bid_amount}, is_utf8=True)
     while True:
         try:
-            req = urllib.request.Request(url, headers=tool.POST_HEADER, data=data)
-            page = urllib.request.urlopen(req).read()
-            page = page.decode('utf-8')
+            requests.post(url, data=data)
+            # req = urllib.request.Request(url, headers=tool.POST_HEADER, data=data)
+            # page = urllib.request.urlopen(req).read()
+            # page = page.decode('utf-8')
         except HTTPError as e:
             tool.logger.info('The server could n\'t fulfill  the request.  ')
             tool.logger.info('Error code: ' + str(e.code))
@@ -116,13 +106,16 @@ def update_bid_amount(ad_set_id, bid_amount):
         except TimeoutError:
             tool.logger.info('connect time out...')
             time.sleep(10)
+        except ConnectionError:
+            tool.logger.info('connect error...')
+            time.sleep(10)
         else:
             print('adset ' + ad_set_id + ' update bid amount to ' + str(bid_amount))
             break
 
 
 def get_bid_amount(ad_set_id):
-    query = compose({'fields': 'bid_amount'})
+    query = tool.compose({'fields': 'bid_amount'})
     out = url_get(tool.FB_HOST_URL + ad_set_id + '?{}'.format(query))
     json_out = json.loads(out)
     return json_out['bid_amount']

@@ -146,7 +146,6 @@ def handler():
             ads_group_blood[ad_id] = 100
 
         tool.logger.info(ad_id + '\tblood\t' + str(round(blood_val, 2)))
-        blood_pool.append(ads_group_blood[ad_id])
 
         # 如果血量为0，则关闭广告
         if ads_group_blood[ad_id] == 0:
@@ -156,6 +155,7 @@ def handler():
         else:
             sum_spend = sum_spend + spend
             sum_install = sum_install + install
+            blood_pool.append(ads_group_blood[ad_id])
 
     # stop ads
     ntp.stop_campaign(stop_campaigns)
@@ -166,8 +166,8 @@ def handler():
     if len(blood_pool) == 0:
         tool.logger.info('find 0 blood list size.')
         return 0, 0
-    if len(blood_pool) >= 10:
-        threshold = blood_pool[9]
+    if len(blood_pool) >= tool.TOP_N_UPDATE_BID:
+        threshold = blood_pool[tool.TOP_N_UPDATE_BID - 1]
     else:
         threshold = blood_pool[-1]
 
@@ -186,7 +186,8 @@ def judge_update(ad_set_id, org_bid, new_bid):
 
 def monitor():
     while True:
-        if time.strftime('%M', time.localtime(time.time()))[1] == '0':
+        if time.strftime('%M', time.localtime(time.time())) == '20':
+            print("start.....")
             estimated_roi, threshold = handler()
             print(estimated_roi)
 
@@ -205,17 +206,17 @@ def monitor():
             else:
                 print('get ad bidamount failure!')
             # 出价统一处理
-            new_bid = 25000
             for key in ads_group_blood:
                 adset_id = tool.ad_collections[key]['adset']
                 cur_bid = adset_bid[adset_id]
-                judge_update(adset_id, cur_bid, new_bid)
+                judge_update(adset_id, cur_bid, tool.DEFAULT_BID)
 
             # 触发调价机制
             if estimated_roi >= 0.05 * (1 + 0.2):
                 tool.logger.info('adjust some ads\' bid amount......')
                 # 触发出价上调机会
                 # 按blood选择前10个广告，给予调价机会
+                count = 0
                 for key in ads_group_blood:
                     adset_id = tool.ad_collections[key]['adset']
                     org_bid = adset_bid[adset_id]
@@ -227,6 +228,9 @@ def monitor():
                             new_bid = 250
                         new_bid = int(round(new_bid * 100, 0))
                         judge_update(adset_id, org_bid, new_bid)
+                        count = count + 1
+                    if count == tool.TOP_N_UPDATE_BID:
+                        break
 
             d_name = datetime.datetime.now().strftime('%Y-%m-%d %H:%M').replace(':', "-").replace(' ', "-")
             tool.save_json('logs/blood-status-' + d_name + ".log", ads_group_blood)

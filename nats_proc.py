@@ -16,7 +16,8 @@ def json_compose(campaign_id):
         'account': tool.ACT_UID,
         'priority': 1,
         'noRetry': True,
-        'replyTo': tool.REPLY_TO
+        'replyTo': tool.REPLY_TO,
+        'payload': campaign_id
     }
     j = json.dumps(json_obj)
     return j.encode(encoding="utf-8")
@@ -28,7 +29,8 @@ async def run(loop, reqs):
     for req in reqs:
         print("campaign {idx} is closed.".format(idx=req))
         await nc.publish("fb_api.async.request", json_compose(req))
-    nc.close()
+    await asyncio.sleep(10)  # 10秒够用了，还不知道怎么确定所有请求发送成功
+    await nc.close()
 
 
 def stop_campaign(campaign_ids):
