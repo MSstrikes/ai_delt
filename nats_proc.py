@@ -10,7 +10,7 @@ def json_compose(campaign_id):
         'request': {
             'apiVersion': tool.FB_API_VERSION,
             'path': campaign_id,
-            'body': 'status=PAUSED',
+            'body': 'status=DELETED',  # DELETED,PAUSED
             'method': "POST"
         },
         'account': tool.ACT_UID,

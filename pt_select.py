@@ -21,3 +21,4 @@ def select_pt():
         json.dump(out_pt, json_file, indent=4)
         # json_file.write(json.dumps(outpt))
     print(str(len(out_pt)) + ' pt saved.')
+
