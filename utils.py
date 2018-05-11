@@ -41,7 +41,7 @@ JSON_TMP_FILE3 = '/tmp/json_tmp_003' + BLOOD_LISTEN_OBJ + '.json'
 JSON_TMP_FILE4 = '/tmp/json_tmp_004' + BLOOD_LISTEN_OBJ + '.json'
 REPLY_TO = 'cador_delt_pro_stop_campaign'
 TOP_N_UPDATE_BID = 10
-DEFAULT_BID = 10000
+DEFAULT_BID = 25000
 
 # 配置logger
 logger = logging.getLogger(__name__)
@@ -98,7 +98,7 @@ def ad_init():
     urllib3.disable_warnings()
     query = compose({'fields': 'name,adsets{ads}', 'limit': 1000})
     dst_url = FB_HOST_URL + ACT_ID + '/campaigns?{}'.format(query)
-    cset = []
+    # cset = []
     while True:
         html = requests.get(dst_url, verify=False).text
         json_out = json.loads(html)
@@ -108,7 +108,7 @@ def ad_init():
             for node in json_out['data']:
                 if node['name'].startswith(BLOOD_LISTEN_OBJ):
                     campaign_id = node['id']
-                    cset.append(campaign_id)
+                    # cset.append(campaign_id)
                     adset_id = node['adsets']['data'][0]['id']
                     ad_id = node['adsets']['data'][0]['ads']['data'][0]['id']
                     ad_collections[ad_id] = {'campaign': campaign_id, 'adset': adset_id}
@@ -121,3 +121,5 @@ def ad_init():
                 print("<------finished!------>")
                 print("listen ads size " + str(len(ad_collections)))
                 break
+    # import nats_proc as ntp
+    # ntp.stop_campaign(cset)
