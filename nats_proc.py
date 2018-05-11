@@ -4,13 +4,13 @@ from nats.aio.client import Client as NATS
 import utils as tool
 
 
-def json_compose(campaign_id):
+def json_compose(campaign_id, cmd_type):
     json_obj = {
         'token': tool.ACS_TK,
         'request': {
             'apiVersion': tool.FB_API_VERSION,
             'path': campaign_id,
-            'body': 'status=DELETED',  # DELETED,PAUSED
+            'body': 'status=' + cmd_type,  # DELETED,PAUSED
             'method': "POST"
         },
         'account': tool.ACT_UID,
@@ -23,19 +23,19 @@ def json_compose(campaign_id):
     return j.encode(encoding="utf-8")
 
 
-async def run(loop, reqs):
+async def run(loop, obj_ids, cmd_type):
     nc = NATS()
     await nc.connect(io_loop=loop, servers=[tool.NAT_URL])
-    for req in reqs:
+    for req in obj_ids:
         print("campaign {idx} is closed.".format(idx=req))
-        await nc.publish("fb_api.async.request", json_compose(req))
+        await nc.publish("fb_api.async.request", json_compose(req, cmd_type))
     await asyncio.sleep(10)  # 10秒够用了，还不知道怎么确定所有请求发送成功
     await nc.close()
 
 
-def stop_campaign(campaign_ids):
+def stop_campaign(campaign_ids, cmd_type):
     loop = asyncio.get_event_loop()
     try:
-        loop.run_until_complete(run(loop, campaign_ids))
+        loop.run_until_complete(run(loop, campaign_ids, cmd_type))
     except Exception as e:
         raise e
