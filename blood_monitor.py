@@ -8,29 +8,14 @@ import datetime
 import os
 import json
 import nats_proc as ntp
+import math
+import random
 
 # ----------------------------------------------------------
-# 计算血量
-
-
-def blood_v1(spend, install, pay):
-    if spend > 0:
-        if install > 0:
-            cpi = spend / install
-            if cpi > 10:
-                return -5, 0x11
-            else:
-                if pay > 0:
-                    return +20, 0x12
-                else:
-                    return +5, 0x13
-        else:
-            return -5, 0x14
-    else:
-        return -10, 0x15
 
 
 def blood(spend, install, pay, acc_spend, acc_pay):
+    # 计算血量
     if spend > 0:
         if install > 0:
             if pay > 0:
@@ -64,6 +49,9 @@ def p_func(acc_cpp):
 
 ads_group_index = {}
 ads_group_blood = {}
+ads_group_roi = {}
+bid_b0 = 5000
+period_cnt = 1
 
 
 def get_ad_index():
@@ -110,78 +98,114 @@ def get_ad_index():
     return ad_dict
 
 
+def stop_campaign_process(stop_campaigns):
+    start = 0
+    step = 500
+    end = step
+    n_len = len(stop_campaigns)
+    if end <= n_len:
+        while True:
+            ntp.stop_campaign(stop_campaigns[start:end], cmd_type='PAUSED')
+            time.sleep(30)
+            start = end
+            end = start + step
+            if end > n_len:
+                end = n_len
+            if start >= end:
+                break
+    else:
+        ntp.stop_campaign(stop_campaigns, cmd_type='PAUSED')
+
+
+def set_blood(ad_id, blood_val):
+    if ad_id not in ads_group_blood:
+        ads_group_blood[ad_id] = 100
+    ads_group_blood[ad_id] = round(ads_group_blood[ad_id] + blood_val, 2)
+    if ads_group_blood[ad_id] < 0:
+        ads_group_blood[ad_id] = 0
+    if ads_group_blood[ad_id] > 100:
+        ads_group_blood[ad_id] = 100
+    tool.logger.info(ad_id + '\tblood\t' + str(round(blood_val, 2)))
+
+
+def calc_ad_blood(ad_id, ad_indexes):
+    spend, install, pay = ad_indexes[ad_id]
+    if ad_id not in ads_group_index:
+        blood_val = blood(spend, install, pay, spend, pay)
+    else:
+        spend_old, install_old, pay_old = ads_group_index[ad_id]
+        if spend < spend_old:
+            blood_val = blood(spend, install, pay, spend, pay)
+        else:
+            blood_val = blood(spend - spend_old, install - spend_old, pay - pay_old, spend, pay)
+    return blood_val
+
+
+def cal_roi(sum_install, sum_spend):
+    if sum_install > 0 and sum_spend > 0:
+        return 0.03 * sum_install * 10 / sum_spend
+    else:
+        return 0
+
+
 def handler():
     sum_spend = 0
     sum_install = 0
-    blood_pool = []
     stop_campaigns = []
     ad_indexes = get_ad_index()
+    adset_bid = get_bid()
     for ad_id in ad_indexes:
         # 排除血量已为0的广告
         if ad_id in ads_group_blood and ads_group_blood[ad_id] == 0:
             continue
-
-        spend, install, pay = ad_indexes[ad_id]
-
-        if ad_id not in ads_group_index:
-            blood_val = blood(spend, install, pay, spend, pay)
-        else:
-            spend_old, install_old, pay_old = ads_group_index[ad_id]
-            if spend < spend_old:
-                blood_val = blood(spend, install, pay, spend, pay)
-            else:
-                blood_val = blood(spend - spend_old, install - spend_old, pay - pay_old, spend, pay)
-
-        ads_group_index[ad_id] = (spend, install, pay)
-
         # 设置广告blood
-        if ad_id not in ads_group_blood:
-            ads_group_blood[ad_id] = 100
+        set_blood(ad_id, calc_ad_blood(ad_id, ad_indexes))
+        ads_group_index[ad_id] = ad_indexes[ad_id]
 
-        ads_group_blood[ad_id] = round(ads_group_blood[ad_id] + blood_val, 2)
-
-        if ads_group_blood[ad_id] < 0:
-            ads_group_blood[ad_id] = 0
-        if ads_group_blood[ad_id] > 100:
-            ads_group_blood[ad_id] = 100
-
-        tool.logger.info(ad_id + '\tblood\t' + str(round(blood_val, 2)))
-
+        # 使用模拟退火算法调整广告出价
+        cur_roi = cal_roi(ad_indexes[ad_id][1], ad_indexes[ad_id][0])
+        ad_set_id = tool.ad_collections[ad_id]['adset']
+        cur_bid = adset_bid[ad_set_id]
+        if ad_id not in ads_group_roi:
+            old_roi = 0
+        else:
+            old_roi = ads_group_roi[ad_id]
+        if cur_roi > old_roi:
+            print("Adset " + ad_set_id + " 接受出价")
+        else:
+            bid_delta = bid_b0 * 1.0 / math.log(1 + period_cnt, math.e)
+            trigger_prob = math.pow(math.e, -(0.06 - cur_roi) * 1000 / (bid_delta * 1.0 / 100))
+            print("Adset " + ad_set_id + " trigger_prob:" + str(trigger_prob))
+            tool.logger.info("Adset " + ad_set_id + " trigger_prob:" + str(trigger_prob))
+            if random.uniform(0, 1) <= trigger_prob:
+                print("Adset " + ad_set_id + " 提高出价...")
+                new_bid = cur_bid + bid_delta
+            else:
+                print("Adset " + ad_set_id + " 降低出价...")
+                new_bid = cur_bid - bid_delta
+            if new_bid > tool.BID_MAX:
+                new_bid = tool.BID_MAX
+            if new_bid < 5000:
+                new_bid = 5000
+            new_bid = int(round(new_bid, 0))
+            fp.update_bid_amount(ad_set_id, new_bid)
+            tool.logger.info("ad set " + ad_set_id + '<ad_id:' + ad_id + '> adjust bid amount from ' + str(cur_bid) +
+                             " to " + str(new_bid))
+        ads_group_roi[ad_id] = cur_roi
         # 如果血量为0，则关闭广告
         if ads_group_blood[ad_id] == 0:
             tmp_campaign = tool.ad_collections[ad_id]['campaign']
             stop_campaigns.append(tmp_campaign)
             tool.logger.info('campaign\t' + tmp_campaign + '\tclosed for 0 blood.')
         else:
-            sum_spend = sum_spend + spend
-            sum_install = sum_install + install
-            blood_pool.append(ads_group_blood[ad_id])
+            sum_spend = sum_spend + ad_indexes[ad_id][0]
+            sum_install = sum_install + ad_indexes[ad_id][1]
 
-    # stop ads
-    ntp.stop_campaign(stop_campaigns)
-
-    # threshold process
-    blood_pool.sort(reverse=True)
-    print(blood_pool)
-    if len(blood_pool) == 0:
-        tool.logger.info('find 0 blood list size.')
-        return 0, 0
-    if len(blood_pool) >= tool.TOP_N_UPDATE_BID:
-        threshold = blood_pool[tool.TOP_N_UPDATE_BID - 1]
-    else:
-        threshold = blood_pool[-1]
+    # stop ads by 500
+    stop_campaign_process(stop_campaigns)
 
     # estimate roi
-    if sum_install > 0 and sum_spend > 0:
-        return 0.3 * sum_install / sum_spend, threshold
-    else:
-        return 0, threshold
-
-
-def judge_update(ad_set_id, org_bid, new_bid):
-    if org_bid != new_bid:
-        fp.update_bid_amount(ad_set_id, new_bid)
-        tool.logger.info("ad set " + ad_set_id + ' adjust bid amount from ' + str(org_bid) + " to " + str(new_bid))
+    return cal_roi(sum_install, sum_spend)
 
 
 def calc_new_bid(cur_blood, threshold):
@@ -194,64 +218,36 @@ def calc_new_bid(cur_blood, threshold):
     return new_bid
 
 
-def up_bid(adset_bid, threshold):
-    count = 0
-    for key in ads_group_blood:
-        adset_id = tool.ad_collections[key]['adset']
-        org_bid = adset_bid[adset_id]
-        if ads_group_blood[key] >= threshold:
-            judge_update(adset_id, org_bid, calc_new_bid(ads_group_blood[key], threshold))
-            count = count + 1
-        if count == tool.TOP_N_UPDATE_BID:
-            break
-
-
 def get_bid():
     str_cmd = 'sh getBidAmount.sh "\\"fields=bid_amount\\"" ' + tool.ad_set_str + ' > ' + tool.JSON_TMP_FILE4
     out = os.system(str_cmd)
     adset_bid = {}
     if out == 0:
-        print('get ad bidamount success!')
+        print('get ad bid amount success!')
         with open(tool.JSON_TMP_FILE4, 'r', encoding='UTF-8') as json_file:
-            lines = json_file.readlines()  # 读取全部内容 ，并以列表方式返回
+            lines = json_file.readlines()  #读取全部内容 ，并以列表方式返回
         for line in lines:
             json_obj = json.loads(line)
             if json_obj['level'] == 30:
                 adset_bid[json_obj['detail']['id']] = json_obj['detail']['bid_amount']
     else:
-        print('get ad bidamount failure!')
+        print('get ad bid amount failure!')
     return adset_bid
 
 
 def monitor():
-    cur_miniutes = time.strftime('%M', time.localtime(time.time()))
-    print('cur_miniutes:' + cur_miniutes)
+    cur_minutes = time.strftime('%M', time.localtime(time.time()))
+    print('cur_minutes:' + cur_minutes)
     while True:
-        if time.strftime('%M', time.localtime(time.time())) == cur_miniutes:
+        if time.strftime('%M', time.localtime(time.time())) == cur_minutes:
             print("start.....")
-            estimated_roi, threshold = handler()
+            estimated_roi = handler()
             print(estimated_roi)
-
-            # 获得广告的出价
-            adset_bid = get_bid()
-
-            # 出价统一处理
-            for key in ads_group_blood:
-                adset_id = tool.ad_collections[key]['adset']
-                if adset_id in adset_bid:
-                    cur_bid = adset_bid[adset_id]
-                    judge_update(adset_id, cur_bid, tool.DEFAULT_BID)
-
-            # 触发调价机制
-            if estimated_roi >= 0.05 * (1 + 0.2):
-                tool.logger.info('adjust some ads\' bid amount......')
-                # 触发出价上调机会
-                # 按blood选择前10个广告，给予调价机会
-                up_bid(adset_bid, threshold)
-
             d_name = datetime.datetime.now().strftime('%Y-%m-%d %H:%M').replace(':', "-").replace(' ', "-")
             tool.save_json('logs/blood-status-' + tool.BLOOD_LISTEN_OBJ + '-' + d_name + ".log", ads_group_blood)
             time.sleep(60)
+            global period_cnt
+            period_cnt = period_cnt + 1
         else:
             time.sleep(1)
 
