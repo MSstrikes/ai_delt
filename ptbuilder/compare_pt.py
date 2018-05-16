@@ -6,16 +6,17 @@ import hashlib
 def get_pt_key(pt):
     hl = hashlib.md5()
     tmp = ''
-    tmp = tmp + str(pt['adset_spec']['targeting']['age_max'])
-    tmp = tmp + '-' + str(pt['adset_spec']['targeting']['age_min'])
-    tmp = tmp + '-' + json.dumps(pt['adset_spec']['targeting']['genders'])
-    tmp = tmp + '-' + json.dumps(pt['adset_spec']['targeting']['geo_locations']['location_types'])
-    tmp = tmp + '-' + json.dumps(pt['adset_spec']['targeting']['custom_audiences'])
+    tmp = tmp + str(pt['adset_spec']['targeting'])
+    # tmp = tmp + str(pt['adset_spec']['targeting']['age_max'])
+    # tmp = tmp + '-' + str(pt['adset_spec']['targeting']['age_min'])
+    # tmp = tmp + '-' + json.dumps(pt['adset_spec']['targeting']['genders'])
+    # tmp = tmp + '-' + json.dumps(pt['adset_spec']['targeting']['geo_locations']['location_types'])
+    # tmp = tmp + '-' + json.dumps(pt['adset_spec']['targeting']['custom_audiences'])
 
-    if 'wireless_carrier' in pt['adset_spec']['targeting']:
-        tmp = tmp + '-g'
-    else:
-        tmp = tmp + '-s'
+    # if 'wireless_carrier' in pt['adset_spec']['targeting']:
+    #     tmp = tmp + '-g'
+    # else:
+    #     tmp = tmp + '-s'
 
     tmp = tmp + '-' + json.dumps(pt['creative'])
     hl.update(tmp.encode(encoding='utf-8'))

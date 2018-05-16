@@ -8,8 +8,11 @@ import datetime
 import os
 import json
 import nats_proc as ntp
-import math
 import random
+from scipy import stats
+import math
+from ptbuilder import gen_pts as gp, builder_proc as bp
+
 
 # ----------------------------------------------------------
 
@@ -45,57 +48,12 @@ def p_func(acc_cpp):
 
 
 # ----------------------------------------------------------
-
-
-ads_group_index = {}
-ads_group_blood = {}
-ads_group_roi = {}
-bid_b0 = 5000
-period_cnt = 1
-
-
-def get_ad_index():
-    # 获得广告的状态
-    str_cmd = 'sh getStatus.sh "\\"fields=status\\"" ' + tool.ad_id_str + ' > ' + tool.JSON_TMP_FILE1
-    out = os.system(str_cmd)
-    ad_status = {}
-    if out == 0:
-        print('get ad status success!')
-        with open(tool.JSON_TMP_FILE1, 'r', encoding='UTF-8') as json_file:
-            lines = json_file.readlines()  # 读取全部内容 ，并以列表方式返回
-        for line in lines:
-            json_obj = json.loads(line)
-            if json_obj['level'] == 30:
-                ad_status[json_obj['detail']['id']] = json_obj['detail']['status']
-    else:
-        print('get ad status failure!')
-    # print(ad_status)
-    # 获得广告的insights
-    from_date = time.strftime('%Y-%m-%d', time.localtime(time.time()))
-    to_date = from_date
-    str_cmd = 'sh getIndex.sh "\\"fields=ad_id,spend,actions&time_range={\\\\"\\"since\\\\"\\":\\\\"\\"' + from_date + \
-              '\\\\"\\",\\\\"\\"until\\\\"\\":\\\\"\\"' + to_date + '\\\\"\\"}\\"" ' + tool.ad_id_str + ' > ' + \
-              tool.JSON_TMP_FILE2
-    out = os.system(str_cmd)
-    ad_dict = {}
-    if out == 0:
-        print("get ad index success!")
-        with open(tool.JSON_TMP_FILE2, 'r', encoding='UTF-8') as json_file:
-            lines = json_file.readlines()  #读取全部内容 ，并以列表方式返回
-        for line in lines:
-            json_obj = json.loads(line)
-            if json_obj['level'] == 30:
-                if len(json_obj['detail']['data']) != 0:
-                    if 'ad_id' in json_obj['detail']['data'][0]:
-                        tmp_ad_id = json_obj['detail']['data'][0]['ad_id']
-                        if tmp_ad_id in ad_status and ad_status[tmp_ad_id] == 'ACTIVE':
-                            ad_dict[tmp_ad_id] = fp.get_insights_by_json(json_obj['detail'])
-    else:
-        print("get ad index failure!")
-    for ad_id in ad_status:
-        if ad_id not in ad_dict:
-            ad_dict[ad_id] = (0, 0, 0)
-    return ad_dict
+ads_group_index = dict()
+ads_group_blood = dict()
+ads_group_roi = dict()
+x_stats = stats.norm(loc=0, scale=0.025)
+y_stats = stats.norm(loc=5, scale=15)
+z_stats = stats.norm(loc=5, scale=10)
 
 
 def stop_campaign_process(stop_campaigns):
@@ -115,6 +73,15 @@ def stop_campaign_process(stop_campaigns):
                 break
     else:
         ntp.stop_campaign(stop_campaigns, cmd_type='PAUSED')
+    print("停止" + str(len(stop_campaigns)) + "个广告......finished!")
+    if len(stop_campaigns) > 0:
+        print("准备创建" + str(len(stop_campaigns)) + "个广告.")
+        bp.gen_builder()
+        gp.create_ads(len(stop_campaigns))
+        key = tool.get_obj_key()
+        if key not in tool.listen_seeds:
+            tool.listen_seeds.append(key)
+        tool.listen_init()
 
 
 def set_blood(ad_id, blood_val):
@@ -148,11 +115,26 @@ def cal_roi(sum_install, sum_spend):
         return 0
 
 
+def get_cur_hour():
+    return int(time.strftime('%H', time.localtime(time.time())))
+
+
+def update_bid(new_bid, cur_bid, ad_set_id, ad_id):
+    if new_bid > tool.BID_MAX:
+        new_bid = tool.BID_MAX
+    if new_bid < tool.BID_MIN:
+        new_bid = tool.BID_MIN
+    new_bid = int(round(new_bid, 0))
+    fp.update_bid_amount(ad_set_id, new_bid)
+    tool.logger.info("ad set " + ad_set_id + '<ad_id:' + ad_id + '> adjust bid amount from ' + str(cur_bid) +
+                     " to " + str(new_bid))
+
+
 def handler():
     sum_spend = 0
     sum_install = 0
-    stop_campaigns = []
-    ad_indexes = get_ad_index()
+    stop_campaigns = list()
+    ad_indexes = tool.get_ad_index()
     adset_bid = get_bid()
     for ad_id in ad_indexes:
         # 排除血量已为0的广告
@@ -162,7 +144,7 @@ def handler():
         set_blood(ad_id, calc_ad_blood(ad_id, ad_indexes))
         ads_group_index[ad_id] = ad_indexes[ad_id]
 
-        # 使用模拟退火算法调整广告出价
+        # 调整广告出价
         cur_roi = cal_roi(ad_indexes[ad_id][1], ad_indexes[ad_id][0])
         ad_set_id = tool.ad_collections[ad_id]['adset']
         cur_bid = adset_bid[ad_set_id]
@@ -170,27 +152,32 @@ def handler():
             old_roi = 0
         else:
             old_roi = ads_group_roi[ad_id]
-        if cur_roi > old_roi:
-            print("Adset " + ad_set_id + " 接受出价")
-        else:
-            bid_delta = bid_b0 * 1.0 / math.log(1 + period_cnt, math.e)
-            trigger_prob = math.pow(math.e, -(0.06 - cur_roi) * 1000 / (bid_delta * 1.0 / 100))
-            print("Adset " + ad_set_id + " trigger_prob:" + str(trigger_prob))
-            tool.logger.info("Adset " + ad_set_id + " trigger_prob:" + str(trigger_prob))
-            if random.uniform(0, 1) <= trigger_prob:
-                print("Adset " + ad_set_id + " 提高出价...")
-                new_bid = cur_bid + bid_delta
+        x = cur_roi - old_roi
+        spend, install, pay = ad_indexes[ad_id]
+        if x >= 0:
+            p_remain = math.sqrt((1 - x_stats.cdf(x)) * (y_stats.cdf(spend)))
+            print("p_remain:" + str(p_remain))
+            if random.uniform(0, 1) <= p_remain:
+                print("Adset " + ad_set_id + " 保持出价...")
             else:
+                print("Adset " + ad_set_id + " 提高出价...")
+                new_bid = cur_bid + tool.max_up_bid[get_cur_hour()] * tool.bid_change_base * (1 - p_remain)
+                update_bid(new_bid, cur_bid, ad_set_id, ad_id)
+        else:
+            if install > 0:
+                cpi = spend / install
+            else:
+                cpi = 0
+            p_down = math.sqrt(x_stats.cdf(-x) * z_stats.cdf(cpi))
+            print("p_down:" + str(p_down))
+            if random.uniform(0, 1) <= p_down:
                 print("Adset " + ad_set_id + " 降低出价...")
-                new_bid = cur_bid - bid_delta
-            if new_bid > tool.BID_MAX:
-                new_bid = tool.BID_MAX
-            if new_bid < 5000:
-                new_bid = 5000
-            new_bid = int(round(new_bid, 0))
-            fp.update_bid_amount(ad_set_id, new_bid)
-            tool.logger.info("ad set " + ad_set_id + '<ad_id:' + ad_id + '> adjust bid amount from ' + str(cur_bid) +
-                             " to " + str(new_bid))
+                new_bid = cur_bid - tool.max_down_bid[get_cur_hour()] * tool.bid_change_base * p_down
+                update_bid(new_bid, cur_bid, ad_set_id, ad_id)
+            else:
+                print("Adset " + ad_set_id + " 提高出价...")
+                new_bid = cur_bid + tool.max_up_bid[get_cur_hour()] * tool.bid_change_base * (1 - p_down)
+                update_bid(new_bid, cur_bid, ad_set_id, ad_id)
         ads_group_roi[ad_id] = cur_roi
         # 如果血量为0，则关闭广告
         if ads_group_blood[ad_id] == 0:
@@ -202,26 +189,17 @@ def handler():
             sum_install = sum_install + ad_indexes[ad_id][1]
 
     # stop ads by 500
-    stop_campaign_process(stop_campaigns)
+    if len(stop_campaigns) > 0:
+        stop_campaign_process(stop_campaigns)
 
     # estimate roi
     return cal_roi(sum_install, sum_spend)
 
 
-def calc_new_bid(cur_blood, threshold):
-    new_bid = 600 - 350 * (cur_blood - 100) / (threshold - 100 + 0.001)
-    if new_bid > 600:
-        new_bid = 600
-    if new_bid < 250:
-        new_bid = 250
-    new_bid = int(round(new_bid * 100, 0))
-    return new_bid
-
-
 def get_bid():
-    str_cmd = 'sh getBidAmount.sh "\\"fields=bid_amount\\"" ' + tool.ad_set_str + ' > ' + tool.JSON_TMP_FILE4
+    str_cmd = 'sh shell-script/getBidAmount.sh "\\"fields=bid_amount\\"" ' + tool.ad_set_str + ' > ' + tool.JSON_TMP_FILE4
     out = os.system(str_cmd)
-    adset_bid = {}
+    adset_bid = dict()
     if out == 0:
         print('get ad bid amount success!')
         with open(tool.JSON_TMP_FILE4, 'r', encoding='UTF-8') as json_file:
@@ -246,11 +224,6 @@ def monitor():
             d_name = datetime.datetime.now().strftime('%Y-%m-%d %H:%M').replace(':', "-").replace(' ', "-")
             tool.save_json('logs/blood-status-' + tool.BLOOD_LISTEN_OBJ + '-' + d_name + ".log", ads_group_blood)
             time.sleep(60)
-            global period_cnt
-            period_cnt = period_cnt + 1
         else:
             time.sleep(1)
 
-
-if __name__ == '__main__':
-    monitor()

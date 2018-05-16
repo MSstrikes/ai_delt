@@ -16,10 +16,12 @@ def get_estimate_mau(target_val, opt_val):
     return json_out['data'][0]['estimate_mau']
 
 
-def url_get(url_open_link):
+def url_get(url_open_link, options_decode=True):
     while True:
         try:
             out = requests.get(url_open_link, verify=False).text
+            if options_decode == False:
+                return out
         except HTTPError as e:
             tool.logger.info('The server could n\'t fulfill  the request.  ')
             tool.logger.info('Error code: ' + str(e.code))
@@ -37,30 +39,13 @@ def url_get(url_open_link):
             return out.read().decode("utf-8")
 
 
-def get_insights_by_json(json_out):
-    if len(json_out['data']) == 0:
-        return 0, 0, 0
-    spend = float(json_out['data'][0]['spend'])
-    install = 0
-    pay = 0
-    if 'actions' not in json_out['data'][0]:
-        return spend, install, pay
-    else:
-        for act_type in json_out['data'][0]['actions']:
-            if act_type['action_type'] == 'mobile_app_install':
-                install = int(act_type['value'])
-            if act_type['action_type'] == 'app_custom_event.fb_mobile_purchase':
-                pay = int(act_type['value'])
-        return spend, install, pay
-
-
 def get_insights(ad_id):
     time_obj = {'since': time.strftime('%Y-%m-%d', time.localtime(time.time()))}
     time_obj['until'] = time_obj['since']
     query = tool.compose({'time_range': json.dumps(time_obj), 'fields': 'spend,actions'})
     out = url_get(tool.FB_HOST_URL + ad_id + '/insights?{}'.format(query))
     json_out = json.loads(out)
-    return get_insights_by_json(json_out)
+    return tool.get_insights_by_json(json_out)
 
 
 def get_ad_status(ad_id):
@@ -93,7 +78,7 @@ def update_bid_amount(ad_set_id, bid_amount):
             # req = urllib.request.Request(url, headers=tool.POST_HEADER, data=data)
             # page = urllib.request.urlopen(req).read()
             # page = page.decode('utf-8')
-        except Exception as e:
+        except Exception:
             tool.logger.info('exception...')
             time.sleep(10)
         else:

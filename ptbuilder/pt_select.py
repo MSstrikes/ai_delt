@@ -5,7 +5,7 @@ import os
 
 def select_pt():
     out_pt = []
-    out = os.system("sh getEmau.sh " + tool.PTS_FL + " > " + tool.JSON_TMP_FILE3)
+    out = os.system("sh shell-script/getEmau.sh > " + tool.JSON_TMP_FILE3)
     if out == 0:
         print('get Emau info success!')
         with open(tool.JSON_TMP_FILE3, 'r', encoding='UTF-8') as json_file:

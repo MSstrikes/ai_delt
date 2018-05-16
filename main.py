@@ -3,6 +3,5 @@ import blood_monitor as bm
 
 
 if __name__ == '__main__':
-    tool.ad_init()
+    tool.listen_init()
     bm.monitor()
-

@@ -1,7 +1,6 @@
 import os
 import utils as tool
-import compare_pt
-import json
+from ptbuilder import compare_pt
 
 
 def unique_his():
@@ -21,6 +20,4 @@ def unique_his():
         key = compare_pt.get_pt_key(pt)
         if key not in exist_keys:
             out_pt.append(pt)
-    with open(tool.DST_FL_UIQ_HIS, 'w') as json_file:
-        json.dump(out_pt, json_file, indent=4)
-    print(str(len(out_pt)) + " pt saved.")
+    return out_pt
