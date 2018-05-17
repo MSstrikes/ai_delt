@@ -1,12 +1,10 @@
 import os
+import sys
 
-# import sys
-
-# if len(sys.argv) != 1:
-#     print("请输入账号的简写，比如[det3]......")
-#     exit(0)
-# account = sys.argv[1]
-account = 'bet3'
+if len(sys.argv) != 2:
+    print("请输入账号的简写，比如[bet3]......")
+    exit(0)
+account = sys.argv[1]
 pro_home = __file__[:__file__.rfind("/")]
 cur_dir = pro_home + '/account/' + account
 for file in os.listdir(cur_dir):
