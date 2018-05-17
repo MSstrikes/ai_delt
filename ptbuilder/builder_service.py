@@ -116,7 +116,7 @@ def get_creative(language):
                                 'video_id': str(row[3]),
                                 'message': message,
                                 'call_to_action': {
-                                    'type': 'INSTALL_NOW',
+                                    'type': 'INSTALL_MOBILE_APP',
                                     'value': {
                                         'application': '634204786734953',
                                         'link': object_store_url
@@ -138,3 +138,5 @@ def get_behavoirs():
         else:
             behavoir_set.append({'id': str(row[1]), 'name': row[2], 'country': row[3]})
     return behavoir_set
+
+
