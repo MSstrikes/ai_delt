@@ -12,6 +12,13 @@ def get_loc_json(lon, lat):
     query = tool.compose({'latitude': lat, "longitude": lon, "type": "adradiussuggestion"})
     out = fp.url_get('https://graph.facebook.com/v2.11/search?{}'.format(query), False)
     json_out = json.loads(out)
+    if 'error' in json_out:
+        return{
+            "latitude": str(lat),
+            "longitude": str(lon),
+            "radius": 'invalid',
+            "distance_unit":'invalid'
+        }
     return {
         "latitude": str(lat),
         "longitude": str(lon),
@@ -28,7 +35,7 @@ def crawl_info():
     for file in os.listdir(pro_dir):
         df = pd.read_csv(pro_dir + '/' + file, usecols=names)
         for i in range(0, len(df)):
-            if i > 25000:
+            if i > 25800:
                 out = get_loc_json(round(df.iloc[i]['LONGITUDE'], 8), round(df.iloc[i]['LATITUDE'], 8))
                 time.sleep(0.2)
                 json_array.append(out)
