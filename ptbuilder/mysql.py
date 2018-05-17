@@ -2,12 +2,16 @@ import pymysql
 import utils as tool
 
 
-def get_table(table_name):
-    conn = pymysql.connect(host=tool.MYSQL_HOST,
+def get_conn():
+    return pymysql.connect(host=tool.MYSQL_HOST,
                            port=tool.MYSQL_PORT,
                            user=tool.MYSQL_USER,
                            passwd=tool.MYSQL_PASSWORD,
-                           db=tool.MYSQL_DB)
+                           db=tool.MYSQL_DB, charset='utf8')
+
+
+def get_table(table_name):
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("SELECT * FROM " + table_name)
     out = cur.fetchall()
@@ -17,11 +21,7 @@ def get_table(table_name):
 
 
 def insert_coordinate(json_obj):
-    conn = pymysql.connect(host=tool.MYSQL_HOST,
-                           port=tool.MYSQL_PORT,
-                           user=tool.MYSQL_USER,
-                           passwd=tool.MYSQL_PASSWORD,
-                           db=tool.MYSQL_DB)
+    conn = get_conn()
     cur = conn.cursor()
     # SQL 插入语句
 

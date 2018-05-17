@@ -1,6 +1,7 @@
 from ptbuilder import builder_service as bs
 import json
 import utils as tool
+import os
 
 rep_dict = {
     "`{python::get_image_hash}`": {'type': 'json', 'value': bs.get_image_hash()},
@@ -13,7 +14,7 @@ rep_dict = {
 
 
 def gen_builder():
-    with open(r"ptbuilder/builder_template.js", "r", encoding="utf-8") as f:
+    with open(os.environ["TEMPLATE_FILE_PATH"], "r", encoding="utf-8") as f:
         # 为a+模式时，因为为追加模式，指针已经移到文尾，读出来的是一个空字符串。
         ftext = f.read()
     for key in rep_dict:

@@ -1,9 +1,9 @@
-from ptbuilder import unique_history, builder_proc as bp, compare_pt, pt_select
+from ptbuilder import unique_history, compare_pt, pt_select
 import utils as tool
-import os
 import json
 import random
 import time
+import os
 
 
 def build_pts(num):
@@ -58,7 +58,3 @@ def create_ads(num):
         print('create ads failure!')
         return -1
 
-
-if __name__ == '__main__':
-    bp.gen_builder()
-    create_ads(10)

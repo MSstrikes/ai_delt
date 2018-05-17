@@ -116,7 +116,7 @@ def get_creative(language):
                                 'video_id': str(row[3]),
                                 'message': message,
                                 'call_to_action': {
-                                    'type': 'PLAY_GAME',
+                                    'type': 'INSTALL_NOW',
                                     'value': {
                                         'application': '634204786734953',
                                         'link': object_store_url

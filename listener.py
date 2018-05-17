@@ -1,5 +1,9 @@
 import asyncio
 from nats.aio.client import Client as NATS
+import os
+
+# 设置环境变量
+os.environ["CONFIG_FILE_PATH"] = '/Users/youhaolin/config.ini'
 import utils as tool
 
 

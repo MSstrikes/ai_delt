@@ -3,10 +3,9 @@ const logger = require('simple-json-logger')
 const qs = require('querystring')
 const {compose, withRetry, withRateLimit} = require('run-control')
 const _ = require('lodash')
-const fs = require('fs');
-const path = require('path')
-const configFilepath = process.env.CONFIG_FILE_PATH
-const config = require(path.resolve(configFilepath))
+const fs = require('fs')
+const get_config = require('./tool.js')
+const config = get_config()
 
 var pjson = JSON.parse(fs.readFileSync('../pts.json'))
 

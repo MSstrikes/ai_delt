@@ -2,11 +2,8 @@ let requestFacebook = require('request-facebook')
 const {inspect} = require('util')
 const {compose, withRetry, withRateLimit} = require('run-control')
 const _ = require('lodash')
-const path = require('path')
-
-const configFilepath = process.env.CONFIG_FILE_PATH
-const config = require(path.resolve(configFilepath))
-
+const get_config = require('./tool.js')
+const config = get_config()
 
 console.log('loading pts...')
 const pts = require('../pts')

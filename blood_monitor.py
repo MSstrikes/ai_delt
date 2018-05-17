@@ -222,7 +222,8 @@ def monitor():
             estimated_roi = handler()
             print(estimated_roi)
             d_name = datetime.datetime.now().strftime('%Y-%m-%d %H:%M').replace(':', "-").replace(' ', "-")
-            tool.save_json('logs/blood-status-' + tool.BLOOD_LISTEN_OBJ + '-' + d_name + ".log", ads_group_blood)
+            tool.save_json(tool.log_dir + '/blood-status-' + tool.BLOOD_LISTEN_OBJ + '-' + d_name + ".log",
+                           ads_group_blood)
             time.sleep(60)
         else:
             time.sleep(1)

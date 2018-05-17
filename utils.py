@@ -1,6 +1,7 @@
 import json
 from collections import OrderedDict
 import os
+import account
 import shutil
 import logging
 import configparser
@@ -9,16 +10,14 @@ import urllib3
 import urllib
 import time
 
-
-section = 'base_conf'
+# ----------------------------
 config = configparser.ConfigParser()
-config.read("/Users/youhaolin/config.ini")
-
-ACS_TK = config.get(section, 'access_token')
+config.read(os.environ["CONFIG_FILE_PATH"])
+section = 'base_conf'
 ACT_UID = config.get(section, 'account_id')
-NAT_URL = config.get(section, 'nat_url')
-DELIVERY_PTS_DIR = config.get(section, 'delivery_dir')
-
+log_dir = account.pro_home + '/logs-' + config.get(section, 'account_name')
+if os.path.exists(log_dir) == False:
+    os.mkdir(log_dir)
 
 def get_obj_key():
     day = int(time.strftime('%d', time.localtime(time.time())))
@@ -27,14 +26,19 @@ def get_obj_key():
     return key
 
 
+# ----------------------------
+
+
+ACS_TK = config.get(section, 'access_token')
+NAT_URL = config.get(section, 'nat_url')
+DELIVERY_PTS_DIR = config.get(section, 'delivery_dir')
 BLOOD_LISTEN_OBJ = get_obj_key()
 listen_seeds = [BLOOD_LISTEN_OBJ]
-LOG_FILE = config.get(section, 'log_file') + '/blood-' + BLOOD_LISTEN_OBJ + '.log'
-DST_FL_POP = '/tmp/' + BLOOD_LISTEN_OBJ + config.get(section, 'dst_pop')
-DST_FL_UIQ_OWN = '/tmp/' + BLOOD_LISTEN_OBJ + config.get(section, 'dst_own')
-DST_FL_UIQ_HIS = '/tmp/' + BLOOD_LISTEN_OBJ + config.get(section, 'dst_his')
+LOG_FILE = log_dir + '/' + __name__ + '-' + BLOOD_LISTEN_OBJ + '.log'
+DST_FL_POP = '/tmp/' + BLOOD_LISTEN_OBJ + 'pop.json'
+DST_FL_UIQ_OWN = '/tmp/' + BLOOD_LISTEN_OBJ + 'unique_own.json'
+DST_FL_UIQ_HIS = '/tmp/' + BLOOD_LISTEN_OBJ + 'unique_his.json'
 BUILDER_JS_PATH = 'nodejs/builder.js'
-
 MIN_EP = 10000  # 预估MAU最小值，用于选取显著的pt
 FB_API_VERSION = 'v2.12'
 ACT_ID = 'act_' + ACT_UID
