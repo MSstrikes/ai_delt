@@ -35,7 +35,7 @@ def crawl_info():
     for file in os.listdir(pro_dir):
         df = pd.read_csv(pro_dir + '/' + file, usecols=names)
         for i in range(0, len(df)):
-            if i > 25800:
+            if i > 42700:
                 out = get_loc_json(round(df.iloc[i]['LONGITUDE'], 8), round(df.iloc[i]['LATITUDE'], 8))
                 time.sleep(0.2)
                 json_array.append(out)
